@@ -1,0 +1,29 @@
+services:
+  galene:
+    build: .
+    image: galene:1.2.1
+    container_name: galene
+    restart: unless-stopped
+    # Host networking: no Docker NAT in front of WebRTC/TURN, and LAN
+    # clients can connect directly.
+    network_mode: host
+    # Run as root so that a root-only data/key.pem (e.g. installed by
+    # acme.sh or certbot) can be read.  Remove this line if the key is
+    # readable by the image's unprivileged "galene" user.
+    user: "0:0"
+    environment:
+      # Public host name of the server (required).  Set it in .env.
+      GALENE_HOST: ${GALENE_HOST:?set GALENE_HOST in .env}
+      GALENE_HTTP_PORT: ${GALENE_HTTP_PORT:-8443}
+      GALENE_TURN_PORT: ${GALENE_TURN_PORT:-1194}
+      # Optional: public address for TURN, if it differs from GALENE_HOST.
+      GALENE_TURN: ${GALENE_TURN:-}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      # Only needed on first start (creates data/config.json).
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    ulimits:
+      nofile: 65536
+    volumes:
+      - ./data:/galene/data
+      - ./groups:/galene/groups
+      - ./recordings:/galene/recordings
