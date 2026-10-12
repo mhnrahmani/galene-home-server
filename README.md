@@ -9,6 +9,9 @@ videoconferencing server. Galene is built from source, and the container:
 - ships `galenectl` preconfigured, so you can manage groups and users with
   `docker exec`.
 
+An optional web GUI for managing groups, users, invite links and the server
+is in [`admin/`](admin/README.md).
+
 Rooms are then available at `https://<your-host>:<port>/group/<group>/`.
 
 ## Requirements
@@ -160,6 +163,12 @@ To create a link that logs someone in without a password and expires:
 ```sh
 gctl create-token -group friends -duration 48h -permissions present
 ```
+
+### Web GUI (optional)
+
+The same tasks can be done in a browser with the admin GUI in
+[`admin/`](admin/README.md). It runs these `galenectl` commands for you, and
+can also start, stop and restart the server.
 
 ## Changing the admin password
 

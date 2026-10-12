@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Server · Galene admin{% endblock %}
+{% block content %}
+<h1>Server</h1>
+<section class="card">
+  <p>Container state: <span class="pill state-{{ server.state }}">{{ server.state }}</span>
+  {% if server.state == 'running' and server.started %} since {{ server.started | dt }}{% endif %}</p>
+  {% if server.state == 'missing' %}
+  <p class="hint">The Galene container doesn't exist yet. Create it once with <code>docker compose up -d --build</code> in the repository root.</p>
+  {% endif %}
+  <div class="row">
+    {% for action, label, warn in [('start', 'Start', ''), ('restart', 'Restart', 'Restart Galene? Everyone in a call is disconnected.'), ('stop', 'Stop', 'Stop Galene? Everyone in a call is disconnected.')] %}
+    <form method="post" action="{{ url_for('server_control', action=action) }}" {% if warn %}data-confirm="{{ warn }}"{% endif %}>
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button {% if action == 'stop' %}class="danger"{% endif %}>{{ label }}</button>
+    </form>
+    {% endfor %}
+  </div>
+  <p class="hint">Restart after the public IP changed: the TURN address is resolved at startup.</p>
+</section>
+<section class="card">
+  <div class="row spread"><h2>Logs</h2><a href="{{ url_for('server') }}">Refresh</a></div>
+  <pre class="logs">{{ logs or 'No logs.' }}</pre>
+</section>
+{% endblock %}

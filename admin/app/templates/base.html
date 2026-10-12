@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Galene admin{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">Galene admin</a>
+  {% if user or not exposed %}
+  <nav>
+    <a href="{{ url_for('index') }}">Groups</a>
+    <a href="{{ url_for('server') }}">Server</a>
+  </nav>
+  <span class="pill state-{{ server.state }}" title="Galene container">{{ server.state }}</span>
+  {% endif %}
+  {% if user %}
+  <form method="post" action="{{ url_for('logout') }}" class="logout">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="link">Log out {{ user }}</button>
+  </form>
+  {% endif %}
+</header>
+<main>
+  {% if (user or not exposed) and server.state != 'running' %}
+  <p class="msg error">Galene is not running ({{ server.state }}). Changes to groups and users need a running server; start it on the <a href="{{ url_for('server') }}">Server</a> page.</p>
+  {% endif %}
+  {% for kind, msg in get_flashed_messages(with_categories=true) %}
+  <pre class="msg {{ kind }}">{% if kind == 'ok' %}✓ {% endif %}{{ msg }}</pre>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<script>
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]');
+  if (!b) return;
+  navigator.clipboard.writeText(b.dataset.copy).then(() => {
+    const t = b.textContent; b.textContent = 'Copied'; setTimeout(() => b.textContent = t, 1200);
+  });
+});
+document.addEventListener('submit', e => {
+  const m = e.target.dataset.confirm;
+  if (m && !confirm(m)) e.preventDefault();
+});
+</script>
+</body>
+</html>

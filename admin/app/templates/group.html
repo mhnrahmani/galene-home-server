@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · Galene admin{% endblock %}
+{% macro csrf_field() %}<input type="hidden" name="csrf" value="{{ csrf }}">{% endmacro %}
+{% macro perm_select(selected='present') %}
+<select name="permissions">
+  {% for p in permissions %}<option value="{{ p }}" {% if p == selected %}selected{% endif %}>{{ p }}</option>{% endfor %}
+</select>
+{% endmacro %}
+{% block content %}
+<p><a href="{{ url_for('index') }}">← Groups</a></p>
+<div class="row spread">
+  <h1>{{ desc.displayName or name }}</h1>
+  {% if base_url %}
+  {% set room = base_url ~ '/group/' ~ name ~ '/' %}
+  <div class="row">
+    <a href="{{ room }}" target="_blank" rel="noopener">Open room ↗</a>
+    <button type="button" class="secondary" data-copy="{{ room }}">Copy room link</button>
+  </div>
+  {% endif %}
+</div>
+
+<section class="card">
+  <h2>Users</h2>
+  <p class="hint"><b>op</b>: moderator · <b>present</b>: camera, mic and chat · <b>message</b>: chat only · <b>observe</b>: watch only</p>
+  {% if users %}
+  <table>
+    <thead><tr><th>User</th><th>Permissions</th><th>Password</th><th></th></tr></thead>
+    <tbody>
+    {% for u, d in users.items() %}
+    <tr>
+      <td>{{ u }}</td>
+      <td>
+        <form method="post" action="{{ url_for('update_user', name=name) }}" class="row tight">
+          {{ csrf_field() }}<input type="hidden" name="user" value="{{ u }}">
+          {{ perm_select(d.permissions) }}<button class="secondary">Change</button>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('update_user', name=name) }}" class="row tight">
+          {{ csrf_field() }}<input type="hidden" name="user" value="{{ u }}">
+          <span class="badge pw-{{ d.password }}">{{ d.password }}</span>
+          <input name="password" type="password" placeholder="new password" autocomplete="new-password" required>
+          <button class="secondary">Set</button>
+        </form>
+      </td>
+      <td class="right">
+        <form method="post" action="{{ url_for('delete_user', name=name) }}" data-confirm="Delete user {{ u }}?">
+          {{ csrf_field() }}<input type="hidden" name="user" value="{{ u }}">
+          <button class="danger small">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No named users yet.</p>
+  {% endif %}
+  <h3>Add user</h3>
+  <form method="post" action="{{ url_for('create_user', name=name) }}" class="row">
+    {{ csrf_field() }}
+    <input name="user" placeholder="user name" required>
+    {{ perm_select() }}
+    <input name="password" type="password" placeholder="password" autocomplete="new-password" required>
+    <button>Add</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Guests (shared login)</h2>
+  <p class="hint">Guests type any name and the shared password. Named users above keep their own passwords.</p>
+  {% if wildcard %}
+  <div class="row">
+    <form method="post" action="{{ url_for('update_user', name=name) }}" class="row tight">
+      {{ csrf_field() }}<input type="hidden" name="wildcard" value="1">
+      <span>Permissions</span>{{ perm_select(wildcard.permissions) }}<button class="secondary">Change</button>
+    </form>
+    <form method="post" action="{{ url_for('update_user', name=name) }}" class="row tight">
+      {{ csrf_field() }}<input type="hidden" name="wildcard" value="1">
+      <span>Password</span><span class="badge pw-{{ wildcard.password }}">{{ wildcard.password }}</span>
+      <input name="password" type="password" placeholder="new shared password" autocomplete="new-password">
+      <label class="check"><input type="checkbox" name="any-password" value="1"> no password needed</label>
+      <button class="secondary">Set</button>
+    </form>
+    <form method="post" action="{{ url_for('delete_user', name=name) }}" data-confirm="Disable the guest login?">
+      {{ csrf_field() }}<input type="hidden" name="wildcard" value="1">
+      <button class="danger small">Disable guests</button>
+    </form>
+  </div>
+  {% else %}
+  <form method="post" action="{{ url_for('create_user', name=name) }}" class="row">
+    {{ csrf_field() }}<input type="hidden" name="wildcard" value="1">
+    {{ perm_select() }}
+    <input name="password" type="password" placeholder="shared password" autocomplete="new-password">
+    <label class="check"><input type="checkbox" name="any-password" value="1"> no password needed</label>
+    <button>Enable guests</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Invite links</h2>
+  <p class="hint">A link logs someone in without a password until it expires.</p>
+  <form method="post" action="{{ url_for('create_token', name=name) }}" class="row">
+    {{ csrf_field() }}
+    {{ perm_select() }}
+    <select name="duration">
+      <option value="1h">1 hour</option>
+      <option value="24h" selected>1 day</option>
+      <option value="48h">2 days</option>
+      <option value="168h">1 week</option>
+      <option value="720h">30 days</option>
+    </select>
+    <input name="user" placeholder="fixed user name (optional)">
+    <button>Create link</button>
+  </form>
+  {% if tokens %}
+  <table>
+    <thead><tr><th>Link</th><th>User</th><th>Permissions</th><th>Expires</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tokens %}
+    <tr class="{{ '' if t.valid else 'muted' }}">
+      <td>
+        {% if base_url and t.valid %}
+        <button type="button" class="secondary small" data-copy="{{ base_url }}/group/{{ name }}/?token={{ t.token }}">Copy link</button>
+        {% endif %}
+        <code>{{ t.token }}</code>
+      </td>
+      <td>{{ t.username }}</td>
+      <td>{{ t.permissions }}</td>
+      <td>{{ (t.expires | dt) if t.expires else 'never' }}{% if not t.valid %} (expired){% endif %}</td>
+      <td class="right row tight">
+        {% if t.valid %}
+        <form method="post" action="{{ url_for('token_action', name=name, action='revoke') }}" data-confirm="Revoke this link?">
+          {{ csrf_field() }}<input type="hidden" name="token" value="{{ t.token }}">
+          <button class="secondary small">Revoke</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('token_action', name=name, action='delete') }}" data-confirm="Delete this link?">
+          {{ csrf_field() }}<input type="hidden" name="token" value="{{ t.token }}">
+          <button class="danger small">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Settings</h2>
+  <form method="post" action="{{ url_for('group_settings', name=name) }}" class="stack">
+    {{ csrf_field() }}
+    <div class="grid">
+      <label>Display name <input name="displayName" value="{{ desc.displayName or '' }}"></label>
+      <label>Contact <input name="contact" value="{{ desc.contact or '' }}"></label>
+      <label class="wide">Description <input name="description" value="{{ desc.description or '' }}"></label>
+      <label class="wide">Comment (not shown to users) <input name="comment" value="{{ desc.comment or '' }}"></label>
+      <label>Max. participants (empty: unlimited) <input name="max-clients" inputmode="numeric" value="{{ desc['max-clients'] or '' }}"></label>
+      <label>Chat history, seconds (empty: 14400) <input name="max-history-age" inputmode="numeric" value="{{ desc['max-history-age'] or '' }}"></label>
+    </div>
+    {% for key, label in [
+      ('public', 'Public: list the group on the start page'),
+      ('allow-recording', 'Allow moderators to record'),
+      ('unrestricted-tokens', 'Let all users (not only moderators) create invite links'),
+      ('autolock', 'Lock the group when no moderator is present'),
+      ('autokick', 'Kick everyone when the last moderator leaves'),
+      ('auto-subgroups', 'Create subgroups automatically'),
+    ] %}
+    <label class="check"><input type="checkbox" name="{{ key }}" value="1" {% if desc[key] %}checked{% endif %}> {{ label }}</label>
+    {% endfor %}
+    <div><button>Save settings</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Delete group</h2>
+  <form method="post" action="{{ url_for('delete_group', name=name) }}" data-confirm="Delete group {{ name }} with all its users?">
+    {{ csrf_field() }}
+    <button class="danger">Delete group {{ name }}</button>
+  </form>
+</section>
+{% endblock %}

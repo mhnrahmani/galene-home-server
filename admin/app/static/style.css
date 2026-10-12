@@ -1,0 +1,67 @@
+:root {
+  --bg: #f6f7f9; --card: #fff; --fg: #1d2330; --muted: #6b7280; --border: #dfe3ea;
+  --accent: #2563eb; --accent-fg: #fff; --danger: #c62828; --ok: #1b7f3b;
+  --ok-bg: #e8f5ec; --err-bg: #fdecec; --code: #eef1f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --card: #1b1f27; --fg: #e5e7eb; --muted: #9aa3b2; --border: #2c323d;
+    --accent: #3b82f6; --danger: #ef5350; --ok: #4ade80;
+    --ok-bg: #16281d; --err-bg: #331a1a; --code: #252a33;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+  background: var(--card); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+header .brand { font-weight: 600; color: var(--fg); }
+header nav { display: flex; gap: 14px; flex: 1; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.5rem; margin: 8px 0 16px; }
+h2 { font-size: 1.1rem; margin: 0 0 10px; }
+h3 { font-size: 1rem; margin: 18px 0 8px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; margin-bottom: 16px; overflow-x: auto; }
+.card.narrow { max-width: 380px; margin: 40px auto; }
+.hint { color: var(--muted); margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-weight: 600; color: var(--muted); font-size: .85rem; }
+tr:last-child td { border-bottom: none; }
+tr.muted td { color: var(--muted); }
+.right { text-align: right; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row.tight { gap: 6px; flex-wrap: nowrap; }
+td.row { display: table-cell; } td.row form { display: inline-block; margin-left: 4px; }
+.row.spread { justify-content: space-between; }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.grid .wide { grid-column: 1 / -1; }
+@media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .row.tight { flex-wrap: wrap; } }
+label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color: var(--muted); }
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--fg); }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; min-width: 0; }
+input[type=checkbox] { width: 16px; height: 16px; }
+button { font: inherit; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-fg);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+button.secondary { background: transparent; color: var(--accent); }
+button.danger { background: transparent; color: var(--danger); border-color: var(--danger); }
+button.small { padding: 3px 8px; font-size: .85rem; }
+button.link { background: none; border: none; color: var(--accent); padding: 0; }
+form { margin: 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre.logs { background: var(--code); padding: 12px; border-radius: 6px; max-height: 60vh;
+  overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 0; }
+.msg { padding: 10px 12px; border-radius: 6px; margin: 0 0 12px; white-space: pre-wrap; word-break: break-word; }
+.msg.ok { background: var(--ok-bg); color: var(--ok); }
+.msg.error { background: var(--err-bg); color: var(--danger); font-family: inherit; }
+.pill, .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8rem;
+  border: 1px solid var(--border); color: var(--muted); }
+.state-running { color: var(--ok); border-color: var(--ok); }
+.state-exited, .state-missing, .state-dead { color: var(--danger); border-color: var(--danger); }
+.pw-none { color: var(--danger); border-color: var(--danger); }

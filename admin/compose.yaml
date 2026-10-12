@@ -1,0 +1,21 @@
+services:
+  galene-admin:
+    build: .
+    image: galene-admin
+    container_name: galene-admin
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_GUI_LISTEN:-127.0.0.1}:${ADMIN_GUI_PORT:-8444}:8444"
+    environment:
+      # The app needs to know whether it is exposed, to decide whether to
+      # require a login and HTTPS.
+      ADMIN_GUI_LISTEN: ${ADMIN_GUI_LISTEN:-127.0.0.1}
+      GALENE_CONTAINER: ${GALENE_CONTAINER:-galene}
+    volumes:
+      # Runs galenectl in the Galene container and starts/stops it.  This
+      # gives the container full control over Docker on the host.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Read-only: admin password hash, canonicalHost, certificate, tokens.
+      - ../data:/galene/data:ro
+      # Read-only: group files, to display users and settings.
+      - ../groups:/galene/groups:ro

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Groups</h1>
+<section class="card">
+  {% if groups %}
+  <table>
+    <thead><tr><th>Group</th><th>Display name</th><th>Users</th><th>Guests</th><th>Public</th><th></th></tr></thead>
+    <tbody>
+    {% for g in groups %}
+    <tr>
+      <td><a href="{{ url_for('group', name=g.name) }}">{{ g.name }}</a></td>
+      <td>{{ g.displayName }}</td>
+      <td>{{ g.users }}</td>
+      <td>{{ 'yes' if g.wildcard else '' }}</td>
+      <td>{{ 'yes' if g.public else '' }}</td>
+      <td class="right">{% if base_url %}<a href="{{ base_url }}/group/{{ g.name }}/" target="_blank" rel="noopener">Open room ↗</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">No groups yet.</p>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>New group</h2>
+  <form method="post" action="{{ url_for('create_group') }}" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="name" placeholder="group name, e.g. friends" required pattern="[A-Za-z0-9][A-Za-z0-9._\-]*(/[A-Za-z0-9][A-Za-z0-9._\-]*)*">
+    <button>Create</button>
+  </form>
+</section>
+{% endblock %}
