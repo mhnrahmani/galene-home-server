@@ -5,11 +5,14 @@ services:
     container_name: galene-admin
     restart: unless-stopped
     ports:
-      - "${ADMIN_GUI_LISTEN:-127.0.0.1}:${ADMIN_GUI_PORT:-8444}:8444"
+      # Docker-published ports bypass host firewalls such as ufw, so in
+      # LAN mode the app also checks client addresses (ADMIN_GUI_SUBNETS).
+      - "${ADMIN_GUI_LISTEN:-0.0.0.0}:${ADMIN_GUI_PORT:-8444}:8444"
     environment:
-      # The app needs to know whether it is exposed, to decide whether to
-      # require a login and HTTPS.
-      ADMIN_GUI_LISTEN: ${ADMIN_GUI_LISTEN:-127.0.0.1}
+      ADMIN_GUI_MODE: ${ADMIN_GUI_MODE:-lan}
+      ADMIN_GUI_SUBNETS: ${ADMIN_GUI_SUBNETS:-}
+      ADMIN_GUI_HOSTS: ${ADMIN_GUI_HOSTS:-}
+      ADMIN_GUI_PATH: ${ADMIN_GUI_PATH:-}
       GALENE_CONTAINER: ${GALENE_CONTAINER:-galene}
     volumes:
       # Runs galenectl in the Galene container and starts/stops it.  This

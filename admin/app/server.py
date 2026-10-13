@@ -5,7 +5,7 @@ import sys
 from cheroot import wsgi
 from cheroot.ssl.builtin import BuiltinSSLAdapter
 
-from app import EXPOSED, app
+from app import EXPOSED, GATEWAY, PREFIX, SUBNETS, application
 
 CERT = "/galene/data/cert.pem"
 KEY = "/galene/data/key.pem"
@@ -34,15 +34,22 @@ def tls_adapter():
 
 
 def main():
-    server = wsgi.Server(("0.0.0.0", 8444), app, numthreads=4)
+    server = wsgi.Server(("0.0.0.0", 8444), application, numthreads=4)
     if EXPOSED:
         if not (os.path.exists(CERT) and os.path.exists(KEY)):
-            sys.exit("The GUI is exposed (ADMIN_GUI_LISTEN is not 127.0.0.1) "
+            sys.exit("ADMIN_GUI_MODE is 'internet' "
                      "but data/cert.pem or data/key.pem is missing.")
         server.ssl_adapter = tls_adapter()
-        print("Exposed mode: HTTPS on port 8444, login required.", flush=True)
+        print("Internet mode: HTTPS on port 8444, login required.",
+              flush=True)
     else:
-        print("Localhost mode: HTTP on port 8444, no login.", flush=True)
+        print("LAN mode: HTTP on port 8444, no login, clients from "
+              + ", ".join(str(n) for n in SUBNETS)
+              + (f" and {GATEWAY} (this server)" if GATEWAY else "") + ".",
+              flush=True)
+    if PREFIX:
+        print("Serving under the path prefix set in ADMIN_GUI_PATH.",
+              flush=True)
     try:
         server.start()
     except KeyboardInterrupt:

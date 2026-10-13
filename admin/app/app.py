@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import ipaddress
 import os
+import re
 import secrets
 import time
 from datetime import timedelta, timezone
@@ -13,13 +15,64 @@ from flask import (Flask, abort, flash, redirect, render_template, request,
 import galene
 from galene import CommandError
 
-LISTEN = os.environ.get("ADMIN_GUI_LISTEN", "127.0.0.1")
-# Anything other than loopback is treated as exposed: login and HTTPS.
-EXPOSED = LISTEN not in ("127.0.0.1", "localhost", "::1")
+MODE = os.environ.get("ADMIN_GUI_MODE", "lan")
+if MODE not in ("lan", "internet"):
+    raise SystemExit(f"ADMIN_GUI_MODE must be 'lan' or 'internet', not {MODE!r}.")
+# lan: HTTP, no login, private client addresses only.
+# internet: HTTPS and login with the Galene admin account.
+EXPOSED = MODE == "internet"
+
+# LAN mode: client networks allowed in, comma-separated.
+DEFAULT_SUBNETS = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7,fe80::/10"
+
+
+def parse_subnets(value):
+    try:
+        return [ipaddress.ip_network(n.strip(), strict=False)
+                for n in value.split(",") if n.strip()]
+    except ValueError as e:
+        raise SystemExit(f"Invalid ADMIN_GUI_SUBNETS: {e}")
+
+
+def docker_gateway():
+    """The container's default gateway: connections from the server itself
+    (e.g. through an SSH tunnel) come from this address."""
+    try:
+        with open("/proc/net/route") as f:
+            for line in f.readlines()[1:]:
+                fields = line.split()
+                if fields[1] == "00000000":
+                    return ipaddress.ip_address(
+                        bytes.fromhex(fields[2])[::-1])
+    except (OSError, IndexError, ValueError):
+        pass
+    return None
+
+
+SUBNETS = parse_subnets(os.environ.get("ADMIN_GUI_SUBNETS") or DEFAULT_SUBNETS)
+GATEWAY = docker_gateway()
+
+# Extra host names (comma-separated) accepted in LAN mode, besides IP
+# addresses and local names.
+LAN_HOSTS = {h.strip().lower()
+             for h in os.environ.get("ADMIN_GUI_HOSTS", "").split(",")
+             if h.strip()}
+LOCAL_SUFFIXES = (".local", ".lan", ".home", ".home.arpa", ".internal")
+
+# Optional secret path prefix: the GUI is only served under it, and every
+# other path returns 404.  Not a replacement for the login; it keeps
+# scanners away from the login form.
+PREFIX = "/" + os.environ.get("ADMIN_GUI_PATH", "").strip().strip("/")
+if PREFIX == "/":
+    PREFIX = ""
+elif not re.fullmatch(r"(/[A-Za-z0-9._~-]+)+", PREFIX):
+    raise SystemExit("ADMIN_GUI_PATH may only contain letters, digits, "
+                     "'.', '_', '~', '-' and '/'.")
 
 app = Flask(__name__)
 app.secret_key = secrets.token_bytes(32)   # sessions end on restart
 app.config.update(
+    SESSION_COOKIE_PATH=PREFIX or "/",
     SESSION_COOKIE_SAMESITE="Strict",
     SESSION_COOKIE_SECURE=EXPOSED,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
@@ -34,13 +87,43 @@ failures = {}
 
 # Security checks
 
+def allowed_client(addr):
+    """Whether a client address is in ADMIN_GUI_SUBNETS, or the server
+    itself."""
+    try:
+        ip = ipaddress.ip_address(addr)
+    except ValueError:
+        return False
+    if ip.is_loopback or ip == GATEWAY:
+        return True
+    return any(ip in net for net in SUBNETS)
+
+
+def local_host(host):
+    """Whether a Host header names this server on the LAN.  Rejects
+    public domain names, so that a web page can't reach the GUI through
+    DNS rebinding."""
+    host = host.lower()
+    if host.startswith("["):
+        host = host[1:host.find("]")]
+    else:
+        host = host.rsplit(":", 1)[0]
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        pass
+    return ("." not in host or host.endswith(LOCAL_SUFFIXES)
+            or host in LAN_HOSTS)
+
+
 @app.before_request
 def check_request():
     if not EXPOSED:
-        # Localhost mode has no login.  Refuse other host names so that a
-        # web page can't reach the GUI through DNS rebinding.
-        if request.host.rsplit(":", 1)[0] not in ("localhost", "127.0.0.1",
-                                                  "[::1]"):
+        # LAN mode has no login: only answer clients on the allowed
+        # networks, and only under local host names.
+        if not allowed_client(request.remote_addr) or \
+                not local_host(request.host):
             abort(403)
     if request.method == "POST":
         token = session.get("csrf")
@@ -68,7 +151,14 @@ def headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Referrer-Policy"] = "no-referrer"
     resp.headers["Cache-Control"] = "no-store"
+    # Keep the GUI out of search engines.
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     return resp
+
+
+@app.get("/robots.txt")
+def robots():
+    return "User-agent: *\nDisallow: /\n", {"Content-Type": "text/plain"}
 
 
 @app.template_filter("dt")
@@ -375,3 +465,31 @@ def server_control(action):
     except CommandError as e:
         flash(f"{e.command}\n{e.message}", "error")
     return redirect(url_for("server"))
+
+
+# Path prefix
+
+ROBOTS_HEADERS = [("X-Robots-Tag", "noindex, nofollow, noarchive"),
+                  ("Cache-Control", "no-store")]
+
+
+def application(environ, start_response):
+    """The WSGI entry point: serves the app under PREFIX only."""
+    if not PREFIX:
+        return app(environ, start_response)
+    path = environ.get("PATH_INFO", "")
+    if path.startswith(PREFIX + "/"):
+        environ["SCRIPT_NAME"] = environ.get("SCRIPT_NAME", "") + PREFIX
+        environ["PATH_INFO"] = path[len(PREFIX):]
+        return app(environ, start_response)
+    if path == PREFIX:
+        start_response("301 Moved Permanently",
+                       [("Location", PREFIX + "/")] + ROBOTS_HEADERS)
+        return [b""]
+    if path == "/robots.txt":
+        start_response("200 OK",
+                       [("Content-Type", "text/plain")] + ROBOTS_HEADERS)
+        return [b"User-agent: *\nDisallow: /\n"]
+    start_response("404 Not Found",
+                   [("Content-Type", "text/plain")] + ROBOTS_HEADERS)
+    return [b"Not Found\n"]
